@@ -1,8 +1,14 @@
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import {
+  HealthCheckSchedule,
+  HealthCheckRecord,
+  SyncLog
+} from './models/HealthCheck.js';
 
 dotenv.config();
 
@@ -14,6 +20,20 @@ const PORT = process.env.GATEWAY_PORT || 6000;
 
 // Middleware
 app.use(express.json());
+
+// MongoDB connection for health check integration
+const GATEWAY_MONGO_URI = process.env.GATEWAY_MONGO_URI || process.env.MONGO_URI;
+if (GATEWAY_MONGO_URI) {
+  mongoose
+    .connect(GATEWAY_MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    })
+    .then(() => console.log('✅ Gateway MongoDB Connected'))
+    .catch((err) => console.error('❌ Gateway MongoDB Error:', err));
+} else {
+  console.warn('⚠️ GATEWAY_MONGO_URI/MONGO_URI not set. Health check APIs will fail.');
+}
 
 // ============================================
 // 1. CONFIGURATION - CẤU HÌNH 3 HỆ THỐNG
@@ -46,6 +66,44 @@ const SYSTEMS = {
     type: 'unknown',
     status: 'pending' // Chờ nhóm Hotel
   }
+};
+
+// ============================================
+// Helper functions
+// ============================================
+
+const mapHrEmployee = (employee) => {
+  const firstName = employee.firstName || employee.first_name || '';
+  const lastName = employee.lastName || employee.last_name || '';
+  const fullName = employee.name || `${firstName} ${lastName}`.trim() || employee.email;
+
+  return {
+    id: employee.id || employee.employeeId || employee.employee_id,
+    name: fullName,
+    email: employee.email,
+    department: employee.department || employee.departmentName || 'General',
+    last_check_date: employee.last_check_date || null
+  };
+};
+
+const fetchHrEmployees = async () => {
+  const url = `${SYSTEMS.hr.baseUrl}/api/employees/third-party/all?token=${SYSTEMS.hr.auth.token}`;
+  const response = await axios.get(url, { timeout: 8000 });
+  const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
+  return list.map(mapHrEmployee).filter((e) => e.id);
+};
+
+const updateScheduleStats = (schedule) => {
+  const total = schedule.appointments.length;
+  const checked = schedule.appointments.filter((a) => a.status === 'checked').length;
+  const pending = schedule.appointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length;
+  const missed = schedule.appointments.filter((a) => a.status === 'missed' || a.status === 'cancelled').length;
+
+  schedule.total_employees = total;
+  schedule.checked_count = checked;
+  schedule.pending_count = pending;
+  schedule.missed_count = missed;
+  schedule.scheduled_count = total;
 };
 
 // ============================================
@@ -564,13 +622,6 @@ app.get('/api/gateway/sync/status', async (req, res) => {
     });
   }
 });
-      code: 5,
-      message: 'Sync failed',
-      success: false,
-      error: error.message
-    });
-  }
-});
 
 // ============================================
 // 7. UNIFIED REPORTS
@@ -620,21 +671,81 @@ app.get('/api/gateway/reports/system-overview', async (req, res) => {
 });
 
 // ============================================
-// 8. ERROR HANDLING & START SERVER
+// 8. HEALTH CHECK - HIS-HRM INTEGRATION
 // ============================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    code: 2,
-    message: 'Endpoint not found',
-    success: false,
-    path: req.path
-  });
+/**
+ * GET /api/gateway/health-check/schedule?date=YYYY-MM-DD&campaign_id=1
+ * Bác sĩ xem lịch khám theo ngày
+ */
+app.get('/api/gateway/health-check/schedule', async (req, res) => {
+  try {
+    const { date, campaign_id } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        code: 3,
+        message: 'date is required (YYYY-MM-DD)',
+        success: false
+      });
+    }
+
+    const targetDate = new Date(date);
+    if (Number.isNaN(targetDate.getTime())) {
+      return res.status(400).json({
+        code: 3,
+        message: 'Invalid date format',
+        success: false
+      });
+    }
+
+    const dayStart = new Date(targetDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    let schedules = [];
+    if (campaign_id) {
+      const schedule = await HealthCheckSchedule.findOne({ campaign_id: Number(campaign_id) });
+      if (schedule) {
+        schedules = [schedule];
+      }
+    } else {
+      schedules = await HealthCheckSchedule.find({});
+    }
+
+    const appointments = schedules.flatMap((schedule) =>
+      (schedule.appointments || [])
+        .filter((a) => a.scheduled_date && a.scheduled_date >= dayStart && a.scheduled_date <= dayEnd)
+        .map((a) => ({
+          appointment_id: a.appointment_id,
+          employee_id: a.employee_id,
+          employee_name: a.employee_name,
+          department: a.department,
+          doctor_id: a.doctor_id,
+          doctor_name: a.doctor_name,
+          scheduled_date: a.scheduled_date,
+          scheduled_time: a.scheduled_time,
+          status: a.status,
+          campaign_id: schedule.campaign_id
+        }))
+    );
+
+    res.json({
+      code: 0,
+      message: 'Health check schedule',
+      success: true,
+      schedule: appointments
+    });
+  } catch (error) {
+    res.status(500).json({
+      code: 5,
+      message: 'Failed to fetch schedule',
+      success: false,
+      error: error.message
+    });
+  }
 });
-
-// ============================================
-// 9. HEALTH CHECK - HIS-HRM INTEGRATION
-// ============================================
 
 /**
  * POST /api/gateway/health-check/campaigns
@@ -642,7 +753,7 @@ app.use((req, res) => {
  */
 app.post('/api/gateway/health-check/campaigns', async (req, res) => {
   try {
-    const { campaign_name, campaign_type, start_date, end_date, description } = req.body;
+    const { campaign_id, campaign_name, campaign_type, start_date, end_date, description, employees } = req.body;
 
     if (!campaign_name || !campaign_type || !start_date || !end_date) {
       return res.status(400).json({
@@ -652,12 +763,50 @@ app.post('/api/gateway/health-check/campaigns', async (req, res) => {
       });
     }
 
-    // TODO: Call HRM API to create campaign
+    const resolvedCampaignId = campaign_id || Date.now();
+
+    const existing = await HealthCheckSchedule.findOne({ campaign_id: resolvedCampaignId });
+    if (existing) {
+      return res.status(409).json({
+        code: 4,
+        message: 'Campaign already exists',
+        success: false,
+        campaign_id: resolvedCampaignId
+      });
+    }
+
+    const schedule = new HealthCheckSchedule({
+      campaign_id: resolvedCampaignId,
+      hrm_campaign_name: campaign_name,
+      hrm_campaign_type: campaign_type,
+      campaign_start_date: new Date(start_date),
+      campaign_end_date: new Date(end_date),
+      status: 'pending',
+      appointments: []
+    });
+
+    if (Array.isArray(employees) && employees.length > 0) {
+      schedule.appointments = employees.map((emp) => ({
+        appointment_id: new mongoose.Types.ObjectId(),
+        employee_id: emp.id || emp.employee_id,
+        employee_name: emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+        department: emp.department || 'General',
+        scheduled_date: new Date(start_date),
+        scheduled_time: emp.scheduled_time || '09:00',
+        status: 'pending',
+        sent_to_hrm: false
+      }));
+      schedule.status = 'scheduled';
+      updateScheduleStats(schedule);
+    }
+
+    await schedule.save();
+
     res.status(201).json({
       code: 0,
       message: 'Health check campaign created successfully',
       success: true,
-      campaign_id: Math.floor(Math.random() * 10000)
+      campaign_id: resolvedCampaignId
     });
   } catch (error) {
     res.status(500).json({
@@ -675,20 +824,23 @@ app.post('/api/gateway/health-check/campaigns', async (req, res) => {
  */
 app.get('/api/gateway/health-check/campaigns', async (req, res) => {
   try {
+    const campaigns = await HealthCheckSchedule.find({}).sort({ createdAt: -1 }).lean();
+
     res.json({
       code: 0,
       message: 'Health check campaigns',
       success: true,
-      campaigns: [
-        {
-          id: 1,
-          campaign_name: 'Annual Health Check 2026',
-          campaign_type: 'Annual',
-          start_date: '2026-02-01',
-          end_date: '2026-03-31',
-          status: 'planning'
-        }
-      ]
+      campaigns: campaigns.map((c) => ({
+        id: c.campaign_id,
+        campaign_name: c.hrm_campaign_name,
+        campaign_type: c.hrm_campaign_type,
+        start_date: c.campaign_start_date,
+        end_date: c.campaign_end_date,
+        status: c.status,
+        total_employees: c.total_employees || 0,
+        checked_count: c.checked_count || 0,
+        pending_count: c.pending_count || 0
+      }))
     });
   } catch (error) {
     res.status(500).json({
@@ -716,29 +868,48 @@ app.get('/api/gateway/health-check/due-employees', async (req, res) => {
       });
     }
 
+    const schedule = await HealthCheckSchedule.findOne({ campaign_id: Number(campaign_id) });
+    if (!schedule) {
+      return res.status(404).json({
+        code: 2,
+        message: 'Campaign not found',
+        success: false
+      });
+    }
+
+    if (!schedule.appointments || schedule.appointments.length === 0) {
+      const employees = await fetchHrEmployees();
+      schedule.appointments = employees.map((emp) => ({
+        appointment_id: new mongoose.Types.ObjectId(),
+        employee_id: emp.id,
+        employee_name: emp.name,
+        department: emp.department,
+        scheduled_date: schedule.campaign_start_date || new Date(),
+        scheduled_time: '09:00',
+        status: 'pending',
+        sent_to_hrm: false
+      }));
+      schedule.status = 'scheduled';
+      updateScheduleStats(schedule);
+      await schedule.save();
+    }
+
+    const dueEmployees = schedule.appointments
+      .filter((a) => a.status !== 'checked')
+      .map((a) => ({
+        id: a.employee_id,
+        name: a.employee_name,
+        department: a.department,
+        last_check_date: null,
+        due_date: schedule.campaign_start_date || a.scheduled_date
+      }));
+
     res.json({
       code: 0,
       message: 'Employees due for health check',
       success: true,
-      total: 2,
-      due_employees: [
-        {
-          id: 1,
-          name: 'Nguyễn Văn A',
-          email: 'a@company.com',
-          department: 'Engineering',
-          last_check_date: '2025-02-10',
-          due_date: '2026-02-10'
-        },
-        {
-          id: 2,
-          name: 'Trần Thị B',
-          email: 'b@company.com',
-          department: 'HR',
-          last_check_date: '2025-03-15',
-          due_date: '2026-03-15'
-        }
-      ]
+      total: dueEmployees.length,
+      due_employees: dueEmployees
     });
   } catch (error) {
     res.status(500).json({
@@ -765,6 +936,44 @@ app.post('/api/gateway/health-check/sync-to-his', async (req, res) => {
         success: false
       });
     }
+
+    let schedule = await HealthCheckSchedule.findOne({ campaign_id: Number(campaign_id) });
+    if (!schedule) {
+      schedule = new HealthCheckSchedule({
+        campaign_id: Number(campaign_id),
+        hrm_campaign_name: `Campaign ${campaign_id}`,
+        hrm_campaign_type: 'Annual',
+        status: 'scheduled',
+        appointments: []
+      });
+    }
+
+    const existingEmployeeIds = new Set(schedule.appointments.map((a) => a.employee_id));
+    const newAppointments = employees
+      .filter((emp) => !existingEmployeeIds.has(emp.id || emp.employee_id))
+      .map((emp) => ({
+        appointment_id: new mongoose.Types.ObjectId(),
+        employee_id: emp.id || emp.employee_id,
+        employee_name: emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+        department: emp.department || 'General',
+        scheduled_date: schedule.campaign_start_date || new Date(),
+        scheduled_time: emp.scheduled_time || '09:00',
+        status: 'pending',
+        sent_to_hrm: false
+      }));
+
+    schedule.appointments.push(...newAppointments);
+    updateScheduleStats(schedule);
+    schedule.status = 'in_progress';
+    await schedule.save();
+
+    await SyncLog.create({
+      campaign_id: Number(campaign_id),
+      sync_type: 'HRM_to_HIS',
+      total_records: employees.length,
+      status: 'completed',
+      message: 'Employees sent to HIS'
+    });
 
     res.json({
       code: 0,
@@ -799,37 +1008,27 @@ app.get('/api/gateway/health-check/results', async (req, res) => {
       });
     }
 
+    const filter = {
+      campaign_id: Number(campaign_id)
+    };
+    if (employee_id) {
+      filter.employee_id = Number(employee_id);
+    }
+
+    const records = await HealthCheckRecord.find(filter).sort({ check_date: -1 }).lean();
+
     res.json({
       code: 0,
       message: 'Health check results',
       success: true,
-      results: employee_id ? [
-        {
-          employee_id: parseInt(employee_id),
-          employee_name: 'Nguyễn Văn A',
-          check_date: '2026-02-10',
-          health_status: 'Type_2',
-          restrictions: ['avoid_heavy_lifting'],
-          doctor_conclusion: 'Huyết áp hơi cao, cần theo dõi'
-        }
-      ] : [
-        {
-          employee_id: 1,
-          employee_name: 'Nguyễn Văn A',
-          check_date: '2026-02-10',
-          health_status: 'Type_2',
-          restrictions: ['avoid_heavy_lifting'],
-          doctor_conclusion: 'Huyết áp hơi cao, cần theo dõi'
-        },
-        {
-          employee_id: 2,
-          employee_name: 'Trần Thị B',
-          check_date: '2026-02-12',
-          health_status: 'Type_1',
-          restrictions: [],
-          doctor_conclusion: 'Sức khỏe bình thường'
-        }
-      ]
+      results: records.map((r) => ({
+        employee_id: r.employee_id,
+        employee_name: r.employee_name,
+        check_date: r.check_date,
+        health_status: r.health_status,
+        restrictions: r.restrictions || [],
+        doctor_conclusion: r.doctor_conclusion
+      }))
     });
   } catch (error) {
     res.status(500).json({
@@ -847,7 +1046,26 @@ app.get('/api/gateway/health-check/results', async (req, res) => {
  */
 app.post('/api/gateway/health-check/his/submit-result', async (req, res) => {
   try {
-    const { appointment_id, employee_id, health_status } = req.body;
+    const {
+      appointment_id,
+      employee_id,
+      campaign_id,
+      employee_name,
+      department,
+      doctor_id,
+      doctor_name,
+      check_date,
+      check_time,
+      vitals,
+      lab_results,
+      imaging,
+      physical_examination,
+      detailed_diagnosis,
+      recommended_treatment,
+      health_status,
+      restrictions,
+      doctor_conclusion
+    } = req.body;
 
     if (!appointment_id || !employee_id || !health_status) {
       return res.status(400).json({
@@ -866,11 +1084,58 @@ app.post('/api/gateway/health-check/his/submit-result', async (req, res) => {
       });
     }
 
+    const record = await HealthCheckRecord.create({
+      appointment_id,
+      campaign_id: Number(campaign_id),
+      employee_id: Number(employee_id),
+      employee_name,
+      department,
+      doctor_id,
+      doctor_name,
+      check_date: check_date ? new Date(check_date) : new Date(),
+      check_time,
+      vitals,
+      lab_results,
+      imaging,
+      physical_examination,
+      detailed_diagnosis,
+      recommended_treatment,
+      health_status,
+      restrictions,
+      doctor_conclusion
+    });
+
+    if (campaign_id) {
+      const schedule = await HealthCheckSchedule.findOne({ campaign_id: Number(campaign_id) });
+      if (schedule) {
+        const appointment = schedule.appointments.find((a) => String(a.appointment_id) === String(appointment_id));
+        if (appointment) {
+          appointment.status = 'checked';
+          appointment.health_status = health_status;
+          appointment.restrictions = restrictions || [];
+          appointment.doctor_conclusion = doctor_conclusion;
+          appointment.sent_to_hrm = true;
+          appointment.hrm_sync_date = new Date();
+        }
+        updateScheduleStats(schedule);
+        schedule.status = schedule.pending_count === 0 ? 'completed' : 'in_progress';
+        await schedule.save();
+      }
+    }
+
+    await SyncLog.create({
+      campaign_id: Number(campaign_id),
+      sync_type: 'HIS_to_HRM',
+      total_records: 1,
+      status: 'completed',
+      message: 'Health check result submitted'
+    });
+
     res.json({
       code: 0,
       message: 'Health check result submitted successfully',
       success: true,
-      his_record_id: `rec_${Date.now()}`
+      his_record_id: record._id
     });
   } catch (error) {
     res.status(500).json({
@@ -898,21 +1163,42 @@ app.get('/api/gateway/health-check/report', async (req, res) => {
       });
     }
 
+    const schedule = await HealthCheckSchedule.findOne({ campaign_id: Number(campaign_id) }).lean();
+    const records = await HealthCheckRecord.find({ campaign_id: Number(campaign_id) }).lean();
+
+    const counts = {
+      Type_1: 0,
+      Type_2: 0,
+      Type_3: 0,
+      Type_4: 0
+    };
+
+    records.forEach((r) => {
+      if (counts[r.health_status] !== undefined) {
+        counts[r.health_status] += 1;
+      }
+    });
+
+    const totalEmployees = schedule?.total_employees || records.length;
+    const checkedCount = schedule?.checked_count || records.length;
+    const pendingCount = schedule?.pending_count || Math.max(totalEmployees - checkedCount, 0);
+    const completionRate = totalEmployees === 0 ? '0%' : `${Math.round((checkedCount / totalEmployees) * 100)}%`;
+
     res.json({
       code: 0,
       message: 'Health check report',
       success: true,
       report: {
-        campaign_id,
-        campaign_name: 'Annual Health Check 2026',
-        total_employees: 2,
-        checked_count: 2,
-        pending_count: 0,
-        type_1_count: 1,
-        type_2_count: 1,
-        type_3_count: 0,
-        type_4_count: 0,
-        completion_rate: '100%'
+        campaign_id: Number(campaign_id),
+        campaign_name: schedule?.hrm_campaign_name || `Campaign ${campaign_id}`,
+        total_employees: totalEmployees,
+        checked_count: checkedCount,
+        pending_count: pendingCount,
+        type_1_count: counts.Type_1,
+        type_2_count: counts.Type_2,
+        type_3_count: counts.Type_3,
+        type_4_count: counts.Type_4,
+        completion_rate: completionRate
       }
     });
   } catch (error) {
@@ -923,6 +1209,19 @@ app.get('/api/gateway/health-check/report', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// ============================================
+// 9. ERROR HANDLING & START SERVER
+// ============================================
+
+app.use((req, res) => {
+  res.status(404).json({
+    code: 2,
+    message: 'Endpoint not found',
+    success: false,
+    path: req.path
+  });
 });
 
 app.listen(PORT, () => {

@@ -26,7 +26,7 @@ const HRPortalPage = () => {
           <div className="portal-actions">
             <button className="portal-btn" type="button">View Employees</button>
             <button className="portal-btn" type="button">Departments</button>
-            <button className="portal-btn" type="button">My Profile</button>
+            <button className="portal-btn" type="button" onClick={() => navigate('/hr/health-check')}>🏥 Health Check Management</button>
             <button className="portal-btn secondary" type="button" onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
           </div>
         </div>

@@ -281,6 +281,10 @@ const HealthCheckModal = ({ appointment, onClose, onSubmit }) => {
         body: JSON.stringify({
           appointment_id: appointment.appointment_id,
           employee_id: appointment.employee_id,
+          campaign_id: appointment.campaign_id,
+          employee_name: appointment.employee_name,
+          department: appointment.department,
+          doctor_name: appointment.doctor_name,
           check_date: new Date().toISOString().split('T')[0],
           doctor_id: 'current_doctor',
           health_status: formData.health_status,

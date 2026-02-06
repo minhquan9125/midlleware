@@ -183,6 +183,19 @@ const Dashboard = () => {
 
               {/* Sync Section */}
               <div className="sync-section">
+                <h3>📊 Integrated Dashboard</h3>
+                <p>View comprehensive HIS-HRM health check analytics</p>
+                
+                <button 
+                  className="sync-button"
+                  onClick={() => navigate('/integrated-dashboard')}
+                  style={{ marginTop: '1rem' }}
+                >
+                  📊 Open Integrated Dashboard
+                </button>
+              </div>
+
+              <div className="sync-section">
                 <h3>Data Sync</h3>
                 <p>Synchronize HR data with Hospital system</p>
                 

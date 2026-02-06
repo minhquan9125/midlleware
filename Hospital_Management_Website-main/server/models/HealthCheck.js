@@ -3,7 +3,7 @@
  * MongoDB schemas cho HIS (Hospital Information System)
  */
 
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 /**
  * ============================================================================
@@ -383,59 +383,71 @@ const healthCheckConfigSchema = new mongoose.Schema(
 
     // Health status definitions
     health_status_types: {
-      Type_1: {
-        label: 'Sức khỏe bình thường',
-        description: 'Không có vấn đề sức khỏe',
-        restrictions: []
-      },
-      Type_2: {
-        label: 'Sức khỏe bình thường, có lưu ý',
-        description: 'Có lưu ý nhỏ về sức khỏe',
-        restrictions: ['follow_up_required']
-      },
-      Type_3: {
-        label: 'Cần theo dõi',
-        description: 'Có vấn đề sức khỏe, cần quản lý',
-        restrictions: ['avoid_heavy_lifting', 'follow_up_monthly']
-      },
-      Type_4: {
-        label: 'Không đủ sức khỏe',
-        description: 'Không đủ sức khỏe để làm việc bình thường',
-        restrictions: ['not_fit_for_duty', 'requires_medical_leave']
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        Type_1: {
+          label: 'Sức khỏe bình thường',
+          description: 'Không có vấn đề sức khỏe',
+          restrictions: []
+        },
+        Type_2: {
+          label: 'Sức khỏe bình thường, có lưu ý',
+          description: 'Có lưu ý nhỏ về sức khỏe',
+          restrictions: ['follow_up_required']
+        },
+        Type_3: {
+          label: 'Cần theo dõi',
+          description: 'Có vấn đề sức khỏe, cần quản lý',
+          restrictions: ['avoid_heavy_lifting', 'follow_up_monthly']
+        },
+        Type_4: {
+          label: 'Không đủ sức khỏe',
+          description: 'Không đủ sức khỏe để làm việc bình thường',
+          restrictions: ['not_fit_for_duty', 'requires_medical_leave']
+        }
       }
     },
 
     // Check frequency definitions
     check_frequency: {
-      Annual: 12, // months
-      Quarterly: 3,
-      Monthly: 1
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        Annual: 12, // months
+        Quarterly: 3,
+        Monthly: 1
+      }
     },
 
     // Restriction types
-    available_restrictions: [
-      'no_height_work',
-      'avoid_heavy_lifting',
-      'sit_8h_max',
-      'avoid_extreme_temperature',
-      'limited_physical_activity',
-      'no_chemical_exposure',
-      'follow_up_required',
-      'follow_up_monthly',
-      'follow_up_quarterly'
-    ],
+    available_restrictions: {
+      type: [String],
+      default: [
+        'no_height_work',
+        'avoid_heavy_lifting',
+        'sit_8h_max',
+        'avoid_extreme_temperature',
+        'limited_physical_activity',
+        'no_chemical_exposure',
+        'follow_up_required',
+        'follow_up_monthly',
+        'follow_up_quarterly'
+      ]
+    },
 
     // Work restrictions policies
     work_restrictions_policy: {
-      Type_3: {
-        max_overtime_hours: 20, // per month
-        max_daily_hours: 8,
-        requires_medical_supervision: false
-      },
-      Type_4: {
-        max_overtime_hours: 0,
-        max_daily_hours: 0,
-        requires_medical_leave: true
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        Type_3: {
+          max_overtime_hours: 20, // per month
+          max_daily_hours: 8,
+          requires_medical_supervision: false
+        },
+        Type_4: {
+          max_overtime_hours: 0,
+          max_daily_hours: 0,
+          requires_medical_leave: true
+        }
       }
     }
   },
@@ -448,7 +460,7 @@ const healthCheckConfigSchema = new mongoose.Schema(
 const HealthCheckConfig = mongoose.model('HealthCheckConfig', healthCheckConfigSchema);
 
 // Export models
-module.exports = {
+export {
   HealthCheckSchedule,
   HealthCheckRecord,
   SyncLog,

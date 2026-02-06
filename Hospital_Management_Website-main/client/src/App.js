@@ -18,6 +18,8 @@ import HRPortalPage from "./pages/HRPortalPage";
 import HospitalPortalPage from "./pages/HospitalPortalPage";
 import HotelPortalPage from "./pages/HotelPortalPage";
 import HealthCheckPage from "./pages/HealthCheckPage";
+import HRHealthCheckPage from "./pages/HRHealthCheckPage";
+import IntegratedDashboard from "./pages/IntegratedDashboard";
 import EmergencyPanel from "./components/EmergencyPanel";
 import ForgotPassword from "./pages/ForgotPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -52,6 +54,8 @@ function App() {
         <Route path="/portal/hospital" element={<HospitalPortalPage />} />
         <Route path="/portal/hotel" element={<HotelPortalPage />} />
         <Route path="/doctor/health-check" element={<HealthCheckPage />} />
+        <Route path="/hr/health-check" element={<HRHealthCheckPage />} />
+        <Route path="/integrated-dashboard" element={<IntegratedDashboard />} />
         
         {/* Hospital Routes (existing) */}
         <Route path="/" element={<HomePage />} />
