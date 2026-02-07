@@ -587,17 +587,19 @@ router.get('/report', async (req, res) => {
  * POST /api/gateway/health-check/sync/init
  */
 router.post('/sync/init', async (req, res) => {
+    const campaign_id = req.body.campaign_id || `campaign_${Date.now()}`;
+    const campaign_name = req.body.campaign_name || `Health Check Campaign ${new Date().toISOString()}`;
+    
     const log = new SyncLog({
-        campaign_id: req.body.campaign_id || Date.now(),
+        campaign_id: campaign_id,
         sync_type: 'HRM_to_HIS',
         direction: 'outbound',
         status: 'in_progress',
         initiated_by: 'system'
     });
-    await log.save();
 
     try {
-        const { campaign_id, campaign_name } = req.body; // Optional override
+        await log.save();
 
         // 1. Get Due Employees
         console.log('Fetching due employees from HR...');
@@ -618,11 +620,11 @@ router.post('/sync/init', async (req, res) => {
         const hospitalUrl = `${SYSTEMS.hospital.baseUrl}/api/his/health-check/schedule`;
 
         const payload = {
-            hrm_campaign_id: campaign_id || Date.now(),
-            campaign_name: campaign_name || 'Auto Generated Campaign ' + new Date().toISOString(),
+            hrm_campaign_id: campaign_id,
+            campaign_name: campaign_name,
             employees: employees.map(e => ({
                 id: e.id,
-                name: e.firstName + ' ' + e.lastName,
+                name: (e.firstName || '') + ' ' + (e.lastName || ''),
                 department: e.department ? e.department.name : 'Unknown'
             }))
         };
@@ -659,15 +661,15 @@ router.post('/sync/init', async (req, res) => {
  */
 router.post('/sync/results', async (req, res) => {
     const log = new SyncLog({
-        campaign_id: 0, // General sync
+        campaign_id: req.body.campaign_id || 'general_sync',
         sync_type: 'HIS_to_HRM',
         direction: 'outbound',
         status: 'in_progress',
         initiated_by: 'system'
     });
-    await log.save();
 
     try {
+        await log.save();
         // 1. Get Completed from Hospital
         const hospitalUrl = `${SYSTEMS.hospital.baseUrl}/api/his/health-check/schedule`;
         const hospitalResponse = await axios.get(hospitalUrl, { timeout: 5000 });

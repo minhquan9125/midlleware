@@ -7,6 +7,7 @@ import { dirname } from 'path';
 // Config
 import connectDB from './config/db.js';
 import SYSTEMS from './config/systems.js';
+import { initializeHealthModels } from './config/healthDb.js';
 
 // Routes
 import gatewayRoutes from './routes/gateway.js';
@@ -17,6 +18,8 @@ import hotelRoutes from './routes/hotel.js';
 import syncRoutes from './routes/sync.js';
 import healthCheckRoutes from './routes/healthCheck.js';
 import reportRoutes from './routes/reports.js';
+import scheduleRoutes from './routes/schedule.js';
+import databaseRoutes from './routes/database.js';
 
 // Jobs
 import startCronJobs from './jobs/cron.js';
@@ -51,6 +54,9 @@ app.use('/api/gateway/hospital', hospitalRoutes);
 // HR Integration
 app.use('/api/gateway/hr', hrRoutes);
 
+// Schedule Management (Tự động tạo lịch khám)
+app.use('/api/gateway/schedule', scheduleRoutes);
+
 // Hotel Integration
 app.use('/api/gateway/hotel', hotelRoutes);
 
@@ -63,12 +69,25 @@ app.use('/api/gateway/health-check', healthCheckRoutes);
 // Reports
 app.use('/api/gateway/reports', reportRoutes);
 
+// Database status & data
+app.use('/api/gateway/database', databaseRoutes);
+
 // ============================================
 // Dashboard & Static Files
 // ============================================
 
 const publicPath = path.join(__dirname, 'public');
+
+// Serve static files from root path
+app.use(express.static(publicPath));
+
+// Also serve from /dashboard for backward compatibility
 app.use('/dashboard', express.static(publicPath));
+
+// Redirect root to index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
 
 // Redirect /dashboard to /dashboard/index.html
 app.get('/dashboard', (req, res) => {
@@ -88,7 +107,15 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  // Initialize health models
+  try {
+    await initializeHealthModels();
+    console.log('✅ Health models initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize health models:', error.message);
+  }
+  
   console.log(`\n🌐 API GATEWAY RUNNING`);
   console.log(`📌 Port: ${PORT}`);
   console.log(`🔗 Health: http://localhost:${PORT}/api/gateway/health\n`);

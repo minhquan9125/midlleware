@@ -34,6 +34,38 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-link {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            background-color: #e2e8f0;
+            color: var(--primary-color);
+        }
+
+        .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
         }
 
         h1 {
@@ -153,9 +185,15 @@
 <body>
     <div class="container">
         <header>
-            <div>
-                <h1>Middleware Monitoring Dashboard</h1>
-                <div id="last-updated">Last updated: <span id="time">Loading...</span></div>
+            <div class="header-left">
+                <div>
+                    <h1>Middleware Monitoring Dashboard</h1>
+                    <div id="last-updated">Last updated: <span id="time">Loading...</span></div>
+                </div>
+                <nav class="nav-menu">
+                    <a href="/dashboard" class="nav-link active">📊 Dashboard</a>
+                    <a href="/schedule.html" class="nav-link">📅 Lịch Khám Tự Động</a>
+                </nav>
             </div>
             <div>
                 <button class="btn" onclick="fetchData()">Refresh Data</button>

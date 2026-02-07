@@ -20,6 +20,7 @@ import contactRoutes from "./routes/contactRoutes.js";
 import emergencyRoutes from "./routes/emergencyRoutes.js";
 import doctorRoutes from "./routes/doctorRoutes.js";
 import demoRoutes from "./routes/demoRoutes.js";
+import employeeRoutes from "./routes/employeeRoutes.js";
 import hrIntegrationRoutes from "./routes/hrIntegrationRoutes.js";
 import healthCheckRoutes from "./routes/healthCheckRoutes.js";
 import isAuthenticated from "./middleware/isAuthenticated.js";
@@ -67,14 +68,14 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/employees", employeeRoutes); // Employee routes - Public, no auth
 app.use("/api", demoRoutes); // Demo routes - Public, no auth, only doctors
+app.use("/api/contact", contactRoutes);
 app.use("/api/admin/medicines", isAuthenticated, doctorViewerOnly, medicineRoutes);
 app.use("/api/admin", isAuthenticated, doctorViewerOnly, adminRoutes);
-app.use("/api/contact", contactRoutes);
-app.use("/api", isAuthenticated, doctorViewerOnly, emergencyRoutes);
-app.use("/api", doctorRoutes);
 app.use("/api/hr", hrIntegrationRoutes); // HR Integration routes - requires HR JWT token
 app.use("/api/his/health-check", healthCheckRoutes);
+app.use("/api", doctorRoutes); // Has its own auth middleware
 
 // Doctors route moved to routes/doctorRoutes.js (public)
 
@@ -94,7 +95,51 @@ app.post("/api/labs/book", async (req, res) => {
 // Checkup booking
 app.post("/api/checkup/book", async (req, res) => {
   try {
-    const newAppointment = new CheckupAppointment(req.body);
+    const {
+      name,
+      patientName,
+      email,
+      date,
+      doctor,
+      doctorId,
+      doctorName,
+      time,
+      phone,
+      department,
+      reason,
+      notes,
+      patientId
+    } = req.body || {};
+
+    const resolvedName = name || patientName;
+    const resolvedDoctor = doctor || doctorName || doctorId;
+
+    if (!resolvedName || !email || !date || !resolvedDoctor) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        required: ["name", "email", "date", "doctor"],
+        received: {
+          name: resolvedName,
+          email,
+          date,
+          doctor: resolvedDoctor
+        }
+      });
+    }
+
+    const newAppointment = new CheckupAppointment({
+      name: resolvedName,
+      email,
+      date,
+      doctor: resolvedDoctor,
+      time,
+      phone,
+      department,
+      reason,
+      notes,
+      patientId,
+      doctorId
+    });
     await newAppointment.save();
     res.status(201).json({ message: "Appointment booked successfully!" });
   } catch (err) {

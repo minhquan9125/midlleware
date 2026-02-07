@@ -8,7 +8,8 @@ const SYSTEMS = {
         port: 5000,
         type: 'node',
         auth: {
-            type: 'jwt-bearer'
+            type: 'jwt-query',
+            token: process.env.HOSPITAL_JWT_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjhmMDExODEyZjY0ZDA0MzQ5NTNiYyIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3MDQzMTg2MiwiZXhwIjoxNzcxMDM2NjYyfQ.OSQ1_uIwAtDjNHyAIMGMqbhDROBPwKm5o_7rom1P92I'
         },
         healthCheckPath: '/api/health'
     },

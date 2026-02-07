@@ -9,14 +9,14 @@ Thầy đã yêu cầu, em đã tạo 4 tệp chi tiết về Use Cases và Midd
 - ✅ Use cases cho HR System (4 use cases)
   - Quản lý Nhân viên (Employee Management)
   - Quản lý Phòng ban (Department Management)
-  - Quản lý Lương (Salary Management)
-  - Quản lý Chấm công (Attendance Management)
+
+  -
 
 - ✅ Use cases cho Hospital System (4 use cases)
   - Quản lý Bác sĩ (Doctor Management)
   - Quản lý Lịch hẹn (Appointment Management)
   - Quản lý Khám bệnh (Checkup Management)
-  - Quản lý Phòng khám (Department Management)
+
 
 - ✅ Cross-system use cases (Sync between HR & Hospital)
 - ✅ Use case diagrams và actor relationships

@@ -8,10 +8,12 @@ const router = express.Router();
 router.get('/doctors', async (req, res) => {
     try {
         const token = req.headers.authorization;
+        const authToken = SYSTEMS.hospital.auth.token;
 
         const response = await axios.get(
             `${SYSTEMS.hospital.baseUrl}/api/doctors`,
             {
+                params: { token: authToken },
                 headers: token ? { 'Authorization': token } : {},
                 timeout: 5000
             }
@@ -37,10 +39,12 @@ router.get('/doctors', async (req, res) => {
 router.get('/doctors/department/:dept', async (req, res) => {
     try {
         const token = req.headers.authorization;
+        const authToken = SYSTEMS.hospital.auth.token;
 
         const response = await axios.get(
             `${SYSTEMS.hospital.baseUrl}/api/doctors/department/${req.params.dept}`,
             {
+                params: { token: authToken },
                 headers: token ? { 'Authorization': token } : {},
                 timeout: 5000
             }
@@ -94,6 +98,35 @@ router.get('/hr/doctors', async (req, res) => {
         res.status(error.response?.status || 500).json({
             code: 5,
             message: 'Error fetching doctors from Hospital HR endpoint',
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Get all employees
+router.get('/employees', async (req, res) => {
+    try {
+        const authToken = SYSTEMS.hospital.auth.token;
+        const response = await axios.get(
+            `${SYSTEMS.hospital.baseUrl}/api/employees/third-party/all`,
+            {
+                params: { token: authToken },
+                timeout: 5000
+            }
+        );
+
+        res.json({
+            code: 0,
+            message: 'Employees from Hospital system',
+            success: true,
+            source: 'Hospital Management',
+            data: response.data.data || response.data
+        });
+    } catch (error) {
+        res.status(500).json({
+            code: 5,
+            message: 'Error fetching employees from Hospital',
             success: false,
             error: error.message
         });

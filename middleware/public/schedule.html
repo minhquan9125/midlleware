@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Lịch Khám Tự Động</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-left: 5px solid #4CAF50;
+        }
+
+        .form-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input, 
+        .form-group select, 
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, 
+        .form-group select:focus, 
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        }
+
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f1f8e9;
+            border-radius: 8px;
+            border: 1px solid #c8e6c9;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .results.error {
+            background: #ffebee;
+            border-color: #ffcdd2;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .appointment-list {
+            max-height: 400px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .appointment-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .appointment-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .status-failed {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            width: min(900px, 95vw);
+            max-height: 85vh;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: #f5f7fb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .modal-header h4 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-body {
+            padding: 16px 20px 20px 20px;
+            overflow: auto;
+        }
+
+        .list-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .list-table th,
+        .list-table td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eef2f7;
+        }
+
+        .list-table th {
+            background: #f8fafc;
+            color: #555;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Quản Lý Lịch Khám Tự Động</h1>
+            <p>Tự động tạo lịch khám sức khỏe định kỳ cho nhân sự từ HR System</p>
+        </div>
+
+        <div class="content">
+            <!-- Kiểm tra nhân viên cần khám -->
+            <div class="form-section">
+                <h3>🔍 Kiểm tra nhân viên cần khám (>6 tháng)</h3>
+                <p style="color: #666; margin-bottom: 20px;">Tự động tạo lịch khám cho nhân viên chưa khám sức khỏe trong 6 tháng gần đây</p>
+                <button type="button" onclick="autoCreateOverdueCheckups()" class="btn">
+                    🏥 Kiểm tra và tạo lịch tự động
+                </button>
+            </div>
+
+            <div class="form-section">
+                <h3>📚 Danh sách nhanh</h3>
+                <p style="color: #666; margin-bottom: 20px;">Xem danh sách Doctors và Employees từ Middleware</p>
+                <button type="button" class="btn secondary" onclick="openListModal('doctors')">👨‍⚕️ Doctor</button>
+                <button type="button" class="btn secondary" onclick="openListModal('employees')">👥 Employees</button>
+            </div>
+
+            <hr style="margin: 30px 0; border: 1px solid #eee;">
+
+            <!-- Form Tạo Lịch Khám Tự Động -->
+            <div class="form-section">
+                <h3>📅 Tạo Lịch Khám Tự Động</h3>
+                <form id="autoScheduleForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="doctorId">ID Bác Sĩ *</label>
+                            <input type="text" id="doctorId" name="doctorId" required 
+                                   placeholder="Nhập ID của bác sĩ" value="doctor_001">
+                        </div>
+                        <div class="form-group">
+                            <label for="scheduledDate">Ngày Khám *</label>
+                            <input type="datetime-local" id="scheduledDate" name="scheduledDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="checkupType">Loại Khám</label>
+                            <select id="checkupType" name="checkupType">
+                                <option value="Khám sức khỏe định kỳ">Khám sức khỏe định kỳ</option>
+                                <option value="Khám tổng quát">Khám tổng quát</option>
+                                <option value="Khám chuyên khoa">Khám chuyên khoa</option>
+                                <option value="Tầm soát ung thư">Tầm soát ung thư</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="department">Phòng Ban</label>
+                            <select id="department" name="department">
+                                <option value="all">Tất cả phòng ban</option>
+                                <option value="IT">IT</option>
+                                <option value="HR">Nhân sự</option>
+                                <option value="Finance">Tài chính</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Sales">Kinh doanh</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" class="btn">🚀 Tạo Lịch Khám Tự Động</button>
+                        <button type="button" class="btn secondary" onclick="loadUpcomingCheckups()">📋 Xem Lịch Sắp Tới</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Đang xử lý... Vui lòng đợi</p>
+            </div>
+
+            <!-- Kết Quả -->
+            <div class="results" id="results">
+                <!-- Thống kê -->
+                <div class="stats" id="stats">
+                    <!-- Stats sẽ được render bằng JavaScript -->
+                </div>
+
+                <!-- Danh sách cuộc hẹn -->
+                <div class="appointment-list" id="appointmentList">
+                    <!-- Appointments sẽ được render bằng JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="listModal" onclick="handleModalBackdrop(event)">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-header">
+                <h4 id="modalTitle">Danh sách</h4>
+                <button class="modal-close" onclick="closeListModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Thiết lập ngày mặc định (ngày mai lúc 8:00)
+        document.addEventListener('DOMContentLoaded', function() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(8, 0, 0, 0);
+            
+            const formatted = tomorrow.toISOString().slice(0, 16);
+            document.getElementById('scheduledDate').value = formatted;
+        });
+
+        // Xử lý form submit
+        document.getElementById('autoScheduleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            showLoading(true);
+            hideResults();
+            
+            try {
+                const response = await fetch('/api/gateway/schedule/auto-create-checkups', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                showLoading(false);
+                
+                if (result.success) {
+                    showResults(result.data, false);
+                } else {
+                    showError(result.message);
+                }
+                
+            } catch (error) {
+                showLoading(false);
+                showError('Lỗi kết nối: ' + error.message);
+            }
+        });
+
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            if (show) {
+                loading.classList.add('show');
+            } else {
+                loading.classList.remove('show');
+            }
+        }
+
+        function hideResults() {
+            document.getElementById('results').classList.remove('show', 'error');
+        }
+
+        function showResults(data, isError = false) {
+            const resultsDiv = document.getElementById('results');
+            const statsDiv = document.getElementById('stats');
+            const appointmentList = document.getElementById('appointmentList');
+            
+            if (isError) {
+                resultsDiv.classList.add('error');
+                appointmentList.innerHTML = `<p style="color: #f44336; text-align: center; padding: 20px;">${data}</p>`;
+                statsDiv.innerHTML = '';
+            } else {
+                resultsDiv.classList.remove('error');
+                
+                // Render thống kê
+                statsDiv.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${data.summary.totalEmployees}</div>
+                        <div class="stat-label">Tổng Nhân Viên</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #4CAF50;">${data.summary.successCount}</div>
+                        <div class="stat-label">Tạo Thành Công</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #f44336;">${data.summary.failedCount}</div>
+                        <div class="stat-label">Thất Bại</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${Math.round((data.summary.successCount / data.summary.totalEmployees) * 100)}%</div>
+                        <div class="stat-label">Tỷ Lệ Thành Công</div>
+                    </div>
+                `;
+                
+                // Render danh sách appointments
+                let appointmentHTML = '<h4 style="margin-bottom: 15px;">📋 Danh Sách Lịch Khám Đã Tạo</h4>';
+                
+                data.createdAppointments.forEach(appointment => {
+                    appointmentHTML += `
+                        <div class="appointment-item">
+                            <div>
+                                <strong>${appointment.employee}</strong> (${appointment.employeeId})<br>
+                                <small>${new Date(appointment.appointmentTime).toLocaleString('vi-VN')}</small>
+                            </div>
+                            <span class="status-success">✅ Thành công</span>
+                        </div>
+                    `;
+                });
+                
+                if (data.failedAppointments.length > 0) {
+                    appointmentHTML += '<h4 style="margin: 20px 0 15px 0; color: #f44336;">❌ Danh Sách Thất Bại</h4>';
+                    data.failedAppointments.forEach(appointment => {
+                        appointmentHTML += `
+                            <div class="appointment-item">
+                                <div>
+                                    <strong>${appointment.employee}</strong> (${appointment.employeeId})<br>
+                                    <small style="color: #f44336;">${appointment.error}</small>
+                                </div>
+                                <span class="status-failed">❌ Thất bại</span>
+                            </div>
+                        `;
+                    });
+                }
+                
+                appointmentList.innerHTML = appointmentHTML;
+            }
+            
+            resultsDiv.classList.add('show');
+        }
+
+        function showError(message) {
+            showResults(message, true);
+        }
+
+        async function loadUpcomingCheckups() {
+            const doctorId = document.getElementById('doctorId').value;
+            if (!doctorId) {
+                alert('Vui lòng nhập ID bác sĩ');
+                return;
+            }
+            
+            showLoading(true);
+            
+            try {
+                const response = await fetch(`/api/gateway/schedule/upcoming-checkups/${doctorId}`);
+                const result = await response.json();
+                
+                showLoading(false);
+                
+                if (result.success) {
+                    // Hiển thị lịch sắp tới
+                    let upcomingHTML = '<h4 style="margin-bottom: 15px;">📅 Lịch Khám Sắp Tới</h4>';
+                    
+                    if (result.data.upcomingCheckups.length === 0) {
+                        upcomingHTML += '<p style="text-align: center; color: #666;">Không có lịch khám nào sắp tới</p>';
+                    } else {
+                        result.data.upcomingCheckups.forEach(checkup => {
+                            upcomingHTML += `
+                                <div class="appointment-item">
+                                    <div>
+                                        <strong>${checkup.type}</strong><br>
+                                        <small>${checkup.date} ${checkup.time} - ${checkup.patientCount} bệnh nhân</small><br>
+                                        <small>${checkup.department}</small>
+                                    </div>
+                                    <span class="status-success">📅 Đã lên lịch</span>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    document.getElementById('appointmentList').innerHTML = upcomingHTML;
+                    document.getElementById('stats').innerHTML = '';
+                    document.getElementById('results').classList.add('show');
+                    document.getElementById('results').classList.remove('error');
+                } else {
+                    showError(result.message);
+                }
+                
+            } catch (error) {
+                showLoading(false);
+                showError('Lỗi kết nối: ' + error.message);
+            }
+        }
+        // Hàm mới: Tự động kiểm tra và tạo lịch cho nhân viên cần khám
+        async function autoCreateOverdueCheckups() {
+            try {
+                showLoading(true);
+
+                const response = await fetch('/api/gateway/schedule/auto-checkup-overdue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    // Hiển thị thống kê
+                    const stats = document.getElementById('stats');
+                    stats.innerHTML = `
+                        <h4 style="margin-bottom: 20px;">📊 Kết Quả Kiểm Tra Nhân Viên</h4>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-number">${result.data.summary.totalEmployees}</div>
+                                <div class="stat-label">Tổng Nhân Viên</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" style="color: #ff9800;">${result.data.summary.employeesNeedingCheckup}</div>
+                                <div class="stat-label">Cần Khám (>6 tháng)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" style="color: #4CAF50;">${result.data.summary.schedulesCreated}</div>
+                                <div class="stat-label">Đã Tạo Lịch</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" style="color: #2196F3;">${result.data.summary.availableDoctors}</div>
+                                <div class="stat-label">Bác Sĩ Có Sẵn</div>
+                            </div>
+                        </div>
+                        <p style="margin-top: 15px; color: #666; text-align: center;">
+                            📅 Kiểm tra từ ngày: <strong>${result.data.summary.checkFromDate}</strong>
+                        </p>
+                    `;
+
+                    // Hiển thị danh sách lịch khám đã tạo
+                    const appointmentList = document.getElementById('appointmentList');
+                    let appointmentHTML = '<h4 style="margin-bottom: 15px;">📋 Danh Sách Lịch Khám Đã Tạo</h4>';
+                    
+                    if (result.data.createdSchedules.length === 0) {
+                        appointmentHTML += `
+                            <div style="text-align: center; padding: 20px; background: #e8f5e8; border-radius: 8px; color: #2e7d32;">
+                                <h3>🎉 Tuyệt vời!</h3>
+                                <p>Tất cả ${result.data.summary.totalEmployees} nhân viên đều đã khám sức khỏe trong 6 tháng gần đây.</p>
+                            </div>
+                        `;
+                    } else {
+                        result.data.createdSchedules.forEach((schedule, index) => {
+                            appointmentHTML += `
+                                <div class="appointment-item">
+                                    <div>
+                                        <strong>${schedule.employee}</strong> (ID: ${schedule.employeeId})<br>
+                                        <small>📧 ${schedule.email}</small><br>
+                                        <small>🏥 ${schedule.doctorName}</small><br>
+                                        <small>📅 ${schedule.scheduledDate} lúc ${schedule.scheduledTime}</small><br>
+                                        <small style="color: #f57c00;">⏰ Khám cuối: ${schedule.lastHealthCheck} (${schedule.monthsOverdue} tháng trước)</small>
+                                    </div>
+                                    <span class="status-success">✅ Đã lên lịch</span>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    // Hiển thị lịch thất bại (nếu có)
+                    if (result.data.failedSchedules && result.data.failedSchedules.length > 0) {
+                        appointmentHTML += '<h4 style="margin: 20px 0 15px 0; color: #f44336;">❌ Danh Sách Thất Bại</h4>';
+                        result.data.failedSchedules.forEach(failed => {
+                            appointmentHTML += `
+                                <div class="appointment-item">
+                                    <div>
+                                        <strong>${failed.employee}</strong> (ID: ${failed.employeeId})<br>
+                                        <small style="color: #f44336;">❌ ${failed.error}</small><br>
+                                        <small>⏰ Khám cuối: ${failed.lastHealthCheck}</small>
+                                    </div>
+                                    <span class="status-failed">❌ Thất bại</span>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    // Hiển thị danh sách bác sĩ
+                    if (result.data.doctorsList && result.data.doctorsList.length > 0) {
+                        appointmentHTML += '<h4 style="margin: 20px 0 15px 0;">👨‍⚕️ Danh Sách Bác Sĩ Tham Gia</h4>';
+                        appointmentHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin-bottom: 20px;">';
+                        result.data.doctorsList.forEach(doctor => {
+                            appointmentHTML += `
+                                <div style="padding: 10px; background: #f0f8ff; border-radius: 8px; border: 1px solid #e1f5fe;">
+                                    <strong>${doctor.name}</strong><br>
+                                    <small>${doctor.specialization} - ${doctor.department}</small>
+                                </div>
+                            `;
+                        });
+                        appointmentHTML += '</div>';
+                    }
+
+                    appointmentList.innerHTML = appointmentHTML;
+
+                    document.getElementById('results').classList.add('show');
+                    document.getElementById('results').classList.remove('error');
+                    
+                    // Thông báo thành công
+                    if (result.data.summary.schedulesCreated > 0) {
+                        alert(`🎉 Đã tự động tạo thành công ${result.data.summary.schedulesCreated} lịch khám cho nhân viên cần khám sức khỏe!`);
+                    }
+                } else {
+                    showError(result.message);
+                }
+
+            } catch (error) {
+                showLoading(false);
+                showError('Lỗi kết nối: ' + error.message);
+            }
+        }
+
+        async function openListModal(type) {
+            const modal = document.getElementById('listModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = type === 'doctors' ? 'Danh sách Doctors' : 'Danh sách Employees';
+            modalBody.innerHTML = '<p>Đang tải dữ liệu...</p>';
+            modal.classList.add('show');
+
+            try {
+                const endpoint = type === 'doctors' ? '/api/gateway/hospital/doctors' : '/api/gateway/hospital/employees';
+                const response = await fetch(endpoint);
+                const result = await response.json();
+
+                if (!result.success) {
+                    modalBody.innerHTML = `<p style="color: #f44336;">${result.message || 'Không thể tải dữ liệu'}</p>`;
+                    return;
+                }
+
+                const items = Array.isArray(result.data) ? result.data : [];
+                if (items.length === 0) {
+                    modalBody.innerHTML = '<p>Không có dữ liệu.</p>';
+                    return;
+                }
+
+                if (type === 'doctors') {
+                    modalBody.innerHTML = `
+                        <table class="list-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tên bác sĩ</th>
+                                    <th>Chuyên khoa</th>
+                                    <th>Khoa</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${items.map(doc => `
+                                    <tr>
+                                        <td>${doc.id ?? ''}</td>
+                                        <td>${doc.name ?? ''}</td>
+                                        <td>${doc.specialization ?? ''}</td>
+                                        <td>${doc.department ?? ''}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    modalBody.innerHTML = `
+                        <table class="list-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Họ tên</th>
+                                    <th>Email</th>
+                                    <th>Phòng ban</th>
+                                    <th>Lần cuối khám</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${items.map(emp => {
+                                    const fullName = `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim();
+                                    const lastCheck = emp.lastHealthCheckDate
+                                        ? new Date(emp.lastHealthCheckDate).toLocaleDateString('vi-VN')
+                                        : 'Chưa khám';
+                                    return `
+                                        <tr>
+                                            <td>${emp.id ?? ''}</td>
+                                            <td>${fullName || emp.name || ''}</td>
+                                            <td>${emp.email ?? ''}</td>
+                                            <td>${emp.department ?? ''}</td>
+                                            <td>${lastCheck}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+            } catch (error) {
+                modalBody.innerHTML = `<p style="color: #f44336;">Lỗi kết nối: ${error.message}</p>`;
+            }
+        }
+
+        function closeListModal() {
+            document.getElementById('listModal').classList.remove('show');
+        }
+
+        function handleModalBackdrop(event) {
+            if (event.target.id === 'listModal') {
+                closeListModal();
+            }
+        }
+    </script>
+</body>
+</html>
